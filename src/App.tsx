@@ -14,7 +14,7 @@ function App() {
     });
   }, []);
 
-  return <main>{JSON.stringify(hotels)}</main>;
+  return <main className="mt-2">{JSON.stringify(hotels)}</main>;
 }
 
 export default App;
