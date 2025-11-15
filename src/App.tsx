@@ -1,19 +1,26 @@
-import { onValue, ref } from "firebase/database";
+import { query, startAfter, limitToFirst, orderByKey, onValue, ref } from "firebase/database";
 import { useEffect, useState } from "react";
 import { db } from "./utils";
 import HotelCard from "./components/HotelCard";
 import type { IHotelData } from "./types";
 
+const limit = 5;
+
 function App() {
   const [hotels, setHotels] = useState<IHotelData[]>([]);
 
-  useEffect(() => {
-    const query = ref(db, "hotels");
-    onValue(query, snapshot => {
+  const loadHotels = () => {
+    const hotelsQuery = query(ref(db, "hotels"), limitToFirst(limit), orderByKey());
+
+    onValue(hotelsQuery, snapshot => {
       if (snapshot.exists()) {
         setHotels(Object.values(snapshot.val()));
       }
     });
+  };
+
+  useEffect(() => {
+    loadHotels();
   }, []);
 
   return (
