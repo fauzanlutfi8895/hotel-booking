@@ -1,5 +1,5 @@
 import { query, startAfter, limitToFirst, orderByKey, onValue, ref } from "firebase/database";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { db } from "./utils";
 import HotelCard from "./components/HotelCard";
 import type { IHotelData } from "./types";
@@ -8,13 +8,24 @@ const limit = 5;
 
 function App() {
   const [hotels, setHotels] = useState<IHotelData[]>([]);
+  const [lastItemKey, setLastItemKey] = useState<string | null>(null);
+  const loadingRef = useRef<HTMLDivElement | null>(null);
 
-  const loadHotels = () => {
-    const hotelsQuery = query(ref(db, "hotels"), limitToFirst(limit), orderByKey());
+  const loadHotels = (after?: string) => {
+    const queryConstraints = [limitToFirst(limit), orderByKey()];
 
+    if (after) {
+      queryConstraints.push(startAfter(after));
+    }
+
+    const hotelsQuery = query(ref(db, "hotels"), ...queryConstraints);
     onValue(hotelsQuery, snapshot => {
       if (snapshot.exists()) {
-        setHotels(Object.values(snapshot.val()));
+        const hotelsKey = Object.keys(snapshot.val())
+        setLastItemKey(hotelsKey[hotelsKey.length - 1]);
+
+        const hotelsData = Object.values(snapshot.val()) as IHotelData[]; //type assertion
+        setHotels(prev => after ? [...prev, ...hotelsData] : [...hotelsData]); // spread operator
       }
     });
   };
@@ -23,6 +34,32 @@ function App() {
     loadHotels();
   }, []);
 
+  useEffect(() => {
+    const callback: IntersectionObserverCallback = (entries) => {
+      const first = entries[0];
+
+      // Jika masih ada halaman selanjutnya
+      if(first.isIntersecting && lastItemKey) {
+        loadHotels(lastItemKey);
+      }
+    }
+
+    const options: IntersectionObserverInit = {threshold: 0.1};
+
+    const observer = new IntersectionObserver(callback, options);
+
+    const loadingRefCurrent = loadingRef.current;
+    if(loadingRefCurrent){
+      observer.observe(loadingRefCurrent);
+    }
+
+    return () => {
+      if(loadingRefCurrent){
+        observer.unobserve(loadingRefCurrent);
+      }
+    }
+  }, [lastItemKey]);
+
   return (
     <main className="p-4">
       <h1 className="text-2xl font-bold mb-4">Explore</h1>
@@ -30,6 +67,8 @@ function App() {
         {hotels.map(hotel => (
           <HotelCard key={hotel.id} data={hotel} />
         ))}
+
+        <div ref={loadingRef}>Loading</div>
       </section>
     </main>
   );
